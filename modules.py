@@ -42,6 +42,13 @@ class encoder(torch.nn.Module):
             padding=2,
             padding_mode="zeros",
         )
+        self.conv3 = torch.nn.Conv3d(
+            in_channels=16,
+            out_channels=16,
+            kernel_size=4,
+            padding=2,
+            padding_mode="zeros",
+        )
 
         self.trans_conv1 = torch.nn.ConvTranspose3d(
             in_channels=16,
@@ -57,19 +64,32 @@ class encoder(torch.nn.Module):
             padding=2,
             padding_mode="zeros",
         )
+        self.trans_conv3 = torch.nn.ConvTranspose3d(
+            in_channels=16,
+            out_channels=16,
+            kernel_size=4,
+            padding=2,
+            padding_mode="zeros",
+        )
 
         self.relu = torch.nn.ReLU()
 
     def forward(self, x):
         x = self.conv1(x)
+        x = self.relu(x)
         x = self.conv2(x)
+        x = self.relu(x)
+        x = self.conv3(x)
 
         x = self.relu(x)
 
+        x = self.trans_conv3(x)
+        x = self.relu(x)
         x = self.trans_conv2(x)
+        x = self.relu(x)
         x = self.trans_conv1(x)
 
-        return x
+        return self.relu(x)
 
 
 class planar_flow_layer(torch.nn.Module):
@@ -84,14 +104,13 @@ class planar_flow_layer(torch.nn.Module):
         self.u = torch.nn.Parameter(2 * torch.rand(size=(d, d, d)) - 1)
         self.w = torch.nn.Parameter(2 * torch.rand(size=(d, d, d)) - 1)
         self.b = torch.nn.Parameter(2 * torch.randn(1) - 1)
-        self.normalizer = normalize()
 
     def forward(self, x: torch.tensor):
         y = torch.einsum("ijk, acijk-> ac", self.w, x)
         y = torch.tanh(y + self.b)
         y = torch.einsum("ijk, ac-> acijk", self.u, y)
         x = x + y
-        return self.normalizer(x)
+        return x
 
 
 def create_planar_flow_model(input_shape, num_layers):
@@ -127,3 +146,37 @@ class planar_flow_merge_channels(torch.nn.Module):
         D = self.NF_d(D)
         V = self.NF_v(V)
         return torch.sigmoid(self.w_d * D + self.w_v * V + self.b)
+
+class BasicUNet(nn.Module):
+    """A minimal UNet implementation."""
+    def __init__(self, in_channels=1, out_channels=1):
+        super().__init__()
+        self.down_layers = torch.nn.ModuleList([ 
+            nn.Conv3d(in_channels, 8, kernel_size=5, padding=2),
+            nn.Conv3d(8, 16, kernel_size=5, padding=2),
+            nn.Conv3d(16, 16, kernel_size=5, padding=2),
+        ])
+        self.up_layers = torch.nn.ModuleList([
+            nn.Conv3d(16, 16, kernel_size=5, padding=2),
+            nn.Conv3d(16, 8, kernel_size=5, padding=2),
+            nn.Conv3d(8, out_channels, kernel_size=5, padding=2), 
+        ])
+        self.act = nn.SiLU() # The activation function
+        self.downscale = nn.MaxPool3d(2)
+        self.upscale = nn.Upsample(scale_factor=2)
+
+    def forward(self, x):
+        h = []
+        for i, l in enumerate(self.down_layers):
+            x = self.act(l(x)) # Through the layer and the activation function
+            if i < 2: # For all but the third (final) down layer:
+              h.append(x) # Storing output for skip connection
+              x = self.downscale(x) # Downscale ready for the next layer
+              
+        for i, l in enumerate(self.up_layers):
+            if i > 0: # For all except the first up layer
+              x = self.upscale(x) # Upscale
+              x += h.pop() # Fetching stored output (skip connection)
+            x = self.act(l(x)) # Through the layer and the activation function
+            
+        return x

@@ -4,12 +4,14 @@ import os
 import h5py
 from shutil import rmtree
 
-HII_DIM = 32
-BOX_LEN = 100
+HII_DIM = 16
+BOX_LEN = 25
 
 psi=1.3             #variable that defines the wedge
 
 def remove_wedge(image: np.array):
+    
+    #For N_x = N_y = N_z
     
     f1=np.fft.fftn(image)
 
@@ -46,7 +48,7 @@ def create_init_box(random_seed):
 
 def generate_vcb(num_cubes: int, include_wr: bool = True):
     
-    images = np.array([create_init_box(np.random.randint(0, 10000)).lowres_vcb for i in range(num_cubes)])
+    images = np.array([create_init_box(random_seed=i+1).lowres_vcb for i in range(num_cubes)])
 
     if include_wr == True:
         return images, np.array([remove_wedge(image) for image in images])
