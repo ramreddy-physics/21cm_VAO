@@ -40,7 +40,7 @@ def denormalize(T, T_max, T_min):
     return (T-b)/a
 ################################################################################
 
-channel_list=[1, 4, 4, 8, 16]
+channel_list=[1, 4, 4, 4, 8, 16]
 Model = UNet(channel_list=channel_list)
 
 N_epochs=1500
