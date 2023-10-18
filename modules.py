@@ -148,6 +148,7 @@ class planar_flow_merge_channels(torch.nn.Module):
         V = self.NF_v(V)
         return torch.sigmoid(self.w_d * D + self.w_v * V + self.b)
 
+
 class BasicUNet(nn.Module):
     """A minimal UNet implementation."""
     def __init__(self, in_channels=1, out_channels=1):
@@ -179,5 +180,26 @@ class BasicUNet(nn.Module):
               x = self.upscale(x) # Upscale
               x += h.pop() # Fetching stored output (skip connection)
             x = self.act(l(x)) # Through the layer and the activation function
+            
+        return x
+
+class UNet(nn.Module):
+    
+    def __init__(self, channel_list):
+        super().__init__()
+        N=len(channel_list)
+        self.down_layers = torch.nn.ModuleList([nn.Conv3d(channel_list[i], channel_list[i+1], kernel_size=3, padding=1) for i in range(0, N-1)])
+        self.up_layers = torch.nn.ModuleList([nn.Conv3d(channel_list[N-1-i] + channel_list[N-1-i], channel_list[N-2-i], kernel_size=3, padding=1) for i in range(0, N-1)])
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        h = []
+        for i, l in enumerate(self.down_layers):
+            x = self.act(l(x)) #store for skip-connection
+            h.append(x) 
+              
+        for i, l in enumerate(self.up_layers):
+            x = torch.cat((x, h.pop()), dim=1) #skip-connection from the down_layers.
+            x = self.act(l(x))
             
         return x

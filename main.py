@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 from vcb_gen import generate_vcb
-from modules import BasicUNet
+from modules import UNet
 
 
 #####################################################################################
@@ -23,11 +23,11 @@ Y_train=torch.tensor(np.reshape(vcb[:N_train], (N_train, 1, 16, 16, 16)), dtype=
 
 
 ####################### simple linear transform to [-1, 1] (not implemented) #################
-X_max=torch.max(X)
-X_min=torch.min(X)
+X_max=torch.max(X_train)
+X_min=torch.min(X_train)
 
-Y_max=torch.max(Y)
-Y_min=torch.min(Y)
+Y_max=torch.max(Y_train)
+Y_min=torch.min(Y_train)
 
 def normalize(T, T_max, T_min):
     a=2.0/(T_max - T_min)
@@ -40,9 +40,10 @@ def denormalize(T, T_max, T_min):
     return (T-b)/a
 ################################################################################
 
-Model=BasicUNet(in_channels=1, out_channels=1)
+channel_list=[1, 4, 4, 8, 16]
+Model = UNet(channel_list=channel_list)
 
-N_epochs=1000
+N_epochs=1500
 lr=1.0e-04
 eps=0.0
 loss=torch.nn.MSELoss()
@@ -54,8 +55,8 @@ optimizer = torch.optim.Adam(Model.parameters(), lr=lr, eps=eps)
 
 for epoch in range(1, N_epochs + 1):
     optimizer.zero_grad()
-    Y_pred = Model(X)
-    loss_val = loss(Y, Y_pred)
+    Y_pred = Model(X_train)
+    loss_val = loss(Y_train, Y_pred)
     loss_val.backward()
     optimizer.step()
     loss_list.append(loss_val.detach().numpy())
