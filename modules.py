@@ -190,9 +190,13 @@ class UNet(nn.Module):
         N=len(channel_list)
         self.down_layers = torch.nn.ModuleList([nn.Conv3d(channel_list[i], channel_list[i+1], kernel_size=3, padding=1) for i in range(0, N-1)])
         self.up_layers = torch.nn.ModuleList([nn.Conv3d(channel_list[N-1-i] + channel_list[N-1-i], channel_list[N-2-i], kernel_size=3, padding=1) for i in range(0, N-1)])
+
+        self.filter_layers = torch.nn.ModuleList([nn.Conv3d(2, 1, kernel_size=3, padding=1) for i in range(3)])
+
         self.act = nn.SiLU()
 
     def forward(self, x):
+        x0=x.detach().clone()
         h = []
         for i, l in enumerate(self.down_layers):
             x = self.act(l(x)) #store for skip-connection
@@ -200,6 +204,10 @@ class UNet(nn.Module):
               
         for i, l in enumerate(self.up_layers):
             x = torch.cat((x, h.pop()), dim=1) #skip-connection from the down_layers.
+            x = self.act(l(x))
+        
+        for i, l in enumerate(self.filter_layers):
+            x = torch.cat((x, x0), dim=1)
             x = self.act(l(x))
             
         return x
