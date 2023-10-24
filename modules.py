@@ -151,63 +151,87 @@ class planar_flow_merge_channels(torch.nn.Module):
 
 class BasicUNet(nn.Module):
     """A minimal UNet implementation."""
+
     def __init__(self, in_channels=1, out_channels=1):
         super().__init__()
-        self.down_layers = torch.nn.ModuleList([ 
-            nn.Conv3d(in_channels, 8, kernel_size=5, padding=2),
-            nn.Conv3d(8, 16, kernel_size=5, padding=2),
-            nn.Conv3d(16, 16, kernel_size=5, padding=2),
-        ])
-        self.up_layers = torch.nn.ModuleList([
-            nn.Conv3d(16, 16, kernel_size=5, padding=2),
-            nn.Conv3d(16, 8, kernel_size=5, padding=2),
-            nn.Conv3d(8, out_channels, kernel_size=5, padding=2), 
-        ])
-        self.act = nn.SiLU() # The activation function
+        self.down_layers = torch.nn.ModuleList(
+            [
+                nn.Conv3d(in_channels, 8, kernel_size=5, padding=2),
+                nn.Conv3d(8, 16, kernel_size=5, padding=2),
+                nn.Conv3d(16, 16, kernel_size=5, padding=2),
+            ]
+        )
+        self.up_layers = torch.nn.ModuleList(
+            [
+                nn.Conv3d(16, 16, kernel_size=5, padding=2),
+                nn.Conv3d(16, 8, kernel_size=5, padding=2),
+                nn.Conv3d(8, out_channels, kernel_size=5, padding=2),
+            ]
+        )
+        self.act = nn.SiLU()  # The activation function
         self.downscale = nn.MaxPool3d(2)
         self.upscale = nn.Upsample(scale_factor=2)
 
     def forward(self, x):
         h = []
         for i, l in enumerate(self.down_layers):
-            x = self.act(l(x)) # Through the layer and the activation function
-            if i < 2: # For all but the third (final) down layer:
-              h.append(x) # Storing output for skip connection
-              x = self.downscale(x) # Downscale ready for the next layer
-              
+            x = self.act(l(x))  # Through the layer and the activation function
+            if i < 2:  # For all but the third (final) down layer:
+                h.append(x)  # Storing output for skip connection
+                x = self.downscale(x)  # Downscale ready for the next layer
+
         for i, l in enumerate(self.up_layers):
-            if i > 0: # For all except the first up layer
-              x = self.upscale(x) # Upscale
-              x += h.pop() # Fetching stored output (skip connection)
-            x = self.act(l(x)) # Through the layer and the activation function
-            
+            if i > 0:  # For all except the first up layer
+                x = self.upscale(x)  # Upscale
+                x += h.pop()  # Fetching stored output (skip connection)
+            x = self.act(l(x))  # Through the layer and the activation function
+
         return x
 
+
 class UNet(nn.Module):
-    
     def __init__(self, channel_list):
         super().__init__()
-        N=len(channel_list)
-        self.down_layers = torch.nn.ModuleList([nn.Conv3d(channel_list[i], channel_list[i+1], kernel_size=3, padding=1) for i in range(0, N-1)])
-        self.up_layers = torch.nn.ModuleList([nn.Conv3d(channel_list[N-1-i] + channel_list[N-1-i], channel_list[N-2-i], kernel_size=3, padding=1) for i in range(0, N-1)])
+        N = len(channel_list)
+        self.down_layers = torch.nn.ModuleList(
+            [
+                nn.Conv3d(
+                    channel_list[i], channel_list[i + 1], kernel_size=3, padding=1
+                )
+                for i in range(0, N - 1)
+            ]
+        )
+        self.up_layers = torch.nn.ModuleList(
+            [
+                nn.Conv3d(
+                    channel_list[N - 1 - i] + channel_list[N - 1 - i],
+                    channel_list[N - 2 - i],
+                    kernel_size=3,
+                    padding=1,
+                )
+                for i in range(0, N - 1)
+            ]
+        )
 
-        self.filter_layers = torch.nn.ModuleList([nn.Conv3d(2, 1, kernel_size=3, padding=1) for i in range(3)])
+        self.filter_layers = torch.nn.ModuleList(
+            [nn.Conv3d(2, 1, kernel_size=3, padding=1) for i in range(3)]
+        )
 
         self.act = nn.SiLU()
 
     def forward(self, x):
-        x0=x.detach().clone()
+        x0 = x.detach().clone()
         h = []
         for i, l in enumerate(self.down_layers):
-            x = self.act(l(x)) #store for skip-connection
-            h.append(x) 
-              
+            x = self.act(l(x))  # store for skip-connection
+            h.append(x)
+
         for i, l in enumerate(self.up_layers):
-            x = torch.cat((x, h.pop()), dim=1) #skip-connection from the down_layers.
+            x = torch.cat((x, h.pop()), dim=1)  # skip-connection from the down_layers.
             x = self.act(l(x))
-        
+
         for i, l in enumerate(self.filter_layers):
             x = torch.cat((x, x0), dim=1)
             x = self.act(l(x))
-            
+
         return x
