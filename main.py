@@ -12,9 +12,10 @@ from modules import UNet
 
 
 #####################################################################################
-N_train=25
-N_test=5
-N = N_train+N_test
+N_train=100
+
+N = N_train
+
 #generate and store cubes
 vcb, vcb_wr = generate_vcb(num_cubes=N)
 
