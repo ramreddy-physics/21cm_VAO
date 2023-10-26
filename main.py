@@ -14,7 +14,7 @@ from modules import UNet
 N = 100
 
 vcb, vcb_wr = generate_vcb(num_cubes=N)
-channel_list = [1, 4, 4, 8, 8, 16]
+channel_list = [1, 4, 8, 8, 16]
 Model = UNet(channel_list=channel_list)
 
 X = torch.tensor(np.reshape(vcb_wr, (N, 1, 16, 16, 16)), dtype=torch.float32)
