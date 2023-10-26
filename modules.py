@@ -17,13 +17,13 @@ class normalize(torch.nn.Module):
 
 
 class ChannelAttention(nn.Module):
-    def __init__(self, in_channels, reduction_ratio=2):
+    def __init__(self, in_channels):
         super(ChannelAttention, self).__init__()
         self.global_avg_pool = nn.AdaptiveAvgPool3d(1)
         self.fc = nn.Sequential(
-            nn.Linear(in_channels, in_channels // reduction_ratio),
+            nn.Linear(in_channels, 10),
             nn.ReLU(),
-            nn.Linear(in_channels // reduction_ratio, in_channels),
+            nn.Linear(10, in_channels),
         )
 
     def forward(self, x):
@@ -46,13 +46,13 @@ class SpatialAttention(nn.Module):
 
 
 class CBAM(nn.Module):
-    def __init__(self, in_channels, reduction_ratio=16):
+    def __init__(self, in_channels):
         super(CBAM, self).__init__()
-        self.channel_att = ChannelAttention(in_channels, reduction_ratio)
+        self.channel_att = ChannelAttention(in_channels)
         self.spatial_att = SpatialAttention()
 
     def forward(self, x):
-        x = self.channel_att(x)
+        #x = self.channel_att(x)
         x = self.spatial_att(x)
         return x
 
@@ -141,7 +141,7 @@ class UNet_attention(nn.Module):
 
         self.attention_layers = torch.nn.ModuleList(
             [
-                CBAM(in_channels=channel_list[i + 1], reduction_ratio=1)
+                CBAM(in_channels=channel_list[i + 1])
                 for i in range(0, N - 1)
             ]
         )
@@ -154,6 +154,7 @@ class UNet_attention(nn.Module):
         for i, l in enumerate(self.down_layers):
             x = self.act(l(x))
             h.append(self.attention_layers[i](x))
+            #h.append(x)
 
         for i, l in enumerate(self.up_layers):
             x = torch.cat((x, h.pop()), dim=1)
